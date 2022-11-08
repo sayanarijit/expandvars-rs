@@ -6,18 +6,23 @@ use nom::character::complete::char;
 use nom::character::is_alphanumeric;
 use nom::combinator::map;
 use nom::multi::fold_many1;
-use nom::sequence::preceded;
+use nom::sequence::{delimited, preceded};
 use nom::IResult;
+
+fn is_variable_name(c: u8) -> bool {
+    c == b'_' || is_alphanumeric(c)
+}
 
 fn parse_constant(i: &[u8]) -> IResult<&[u8], Result> {
     map(take_while1(|c| c != b'$'), exp::expand_constant)(i)
 }
 
 fn parse_variable_body(i: &[u8]) -> IResult<&[u8], Result> {
-    map(
-        take_while1(|c| c == b'_' || is_alphanumeric(c)),
-        exp::expand_variable_body,
-    )(i)
+    map(take_while1(is_variable_name), exp::expand_variable_body)(i)
+}
+
+fn parse_braced_variable_body(i: &[u8]) -> IResult<&[u8], Result> {
+    delimited(char('{'), parse_variable_body, char('}'))(i)
 }
 
 fn parse_dollar(i: &[u8]) -> IResult<&[u8], Result> {
@@ -25,7 +30,10 @@ fn parse_dollar(i: &[u8]) -> IResult<&[u8], Result> {
 }
 
 fn parse_variable(i: &[u8]) -> IResult<&[u8], Result> {
-    preceded(char('$'), parse_variable_body)(i)
+    preceded(
+        char('$'),
+        alt((parse_braced_variable_body, parse_variable_body)),
+    )(i)
 }
 
 fn parse_fragment(i: &[u8]) -> IResult<&[u8], Result> {
@@ -85,8 +93,8 @@ mod tests {
     #[test]
     fn test_parse_constant() {
         assert_eq!(
-            parse_constant(b"foo.bar").unwrap().1.unwrap(),
-            "foo.bar".to_string()
+            parse_constant(b"foo.bar").unwrap().1.unwrap().as_str(),
+            "foo.bar"
         );
     }
 
@@ -97,8 +105,22 @@ mod tests {
             parse_variable(format!("${var}").as_bytes())
                 .unwrap()
                 .1
-                .unwrap(),
-            "value".to_string()
+                .unwrap()
+                .as_str(),
+            "value"
+        );
+    }
+
+    #[test]
+    fn test_parse_braced_variable_body() {
+        let var = ScopedEnv::new("value");
+        assert_eq!(
+            parse_braced_variable_body(format!("{{{var}}}").as_bytes())
+                .unwrap()
+                .1
+                .unwrap()
+                .as_str(),
+            "value"
         );
     }
 
@@ -111,17 +133,15 @@ mod tests {
     fn test_parse_fragment() {
         let var = ScopedEnv::new("value");
 
-        assert_eq!(
-            parse_fragment(b"foo").unwrap().1.unwrap(),
-            "foo".to_string()
-        );
+        assert_eq!(parse_fragment(b"foo").unwrap().1.unwrap().as_str(), "foo");
 
         assert_eq!(
             parse_fragment(format!("${var}").as_bytes())
                 .unwrap()
                 .1
-                .unwrap(),
-            "value".to_string()
+                .unwrap()
+                .as_str(),
+            "value"
         );
     }
 
@@ -129,10 +149,11 @@ mod tests {
     fn test_parse_combo() {
         let var = ScopedEnv::new("value");
         assert_eq!(
-            parse(format!("foo${var}.foo.${var}$").as_bytes())
+            parse(format!("foo${var}.foo.${{{var}}}$").as_bytes())
                 .unwrap()
                 .1
-                .unwrap(),
+                .unwrap()
+                .as_str(),
             "foovalue.foo.value$"
         );
     }
