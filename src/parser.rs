@@ -24,7 +24,7 @@ fn parse_variable(i: &[u8]) -> IResult<&[u8], Token> {
     preceded(char('$'), parse_variable_body)(i)
 }
 
-pub(crate) fn parse_fragment(i: &[u8]) -> IResult<&[u8], Token> {
+fn parse_fragment(i: &[u8]) -> IResult<&[u8], Token> {
     alt((parse_variable, parse_constant, parse_dollar))(i)
 }
 
