@@ -10,5 +10,5 @@ pub(crate) fn expand_constant(i: &[u8]) -> Result {
 
 pub(crate) fn expand_variable_body(i: &[u8]) -> Result {
     let key = expand_constant(i)?;
-    std::env::var(key).map_err(Error::from)
+    std::env::var(key).or_else(|_| Ok(String::new()))
 }

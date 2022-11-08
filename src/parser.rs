@@ -41,54 +41,26 @@ fn parse_fragment(i: &[u8]) -> IResult<&[u8], Result> {
 }
 
 pub(crate) fn parse(i: &[u8]) -> IResult<&[u8], Result> {
-    fold_many1(
-        parse_fragment,
-        || Result::Ok(String::new()),
-        |tokens, tok| {
-            let mut tokens = tokens?;
-            tokens.push_str(&tok?);
-            Result::Ok(tokens)
-        },
-    )(i)
+    if i.is_empty() {
+        IResult::Ok((i, Result::Ok(String::new())))
+    } else {
+        fold_many1(
+            parse_fragment,
+            || Result::Ok(String::new()),
+            |tokens, tok| {
+                let mut tokens = tokens?;
+                tokens.push_str(&tok?);
+                Result::Ok(tokens)
+            },
+        )(i)
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use std::{
-        fmt::Display,
-        time::{SystemTime, UNIX_EPOCH},
-    };
-
     use super::*;
-
-    struct ScopedEnv(String);
-
-    impl ScopedEnv {
-        fn new(value: &str) -> Self {
-            let tid = std::thread::current().id().as_u64();
-            let ts = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Time went backwards")
-                .as_micros();
-
-            let name = format!("v{}t{}", tid, ts);
-            std::env::set_var(&name, value);
-            Self(name)
-        }
-    }
-
-    impl Display for ScopedEnv {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.0)
-        }
-    }
-
-    impl<'a> Drop for ScopedEnv {
-        fn drop(&mut self) {
-            std::env::remove_var(&self.0);
-        }
-    }
+    use scoped_rand_env::Env;
 
     #[test]
     fn test_parse_constant() {
@@ -100,7 +72,7 @@ mod tests {
 
     #[test]
     fn test_parse_variable() {
-        let var = ScopedEnv::new("value");
+        let var = Env::new("value");
         assert_eq!(
             parse_variable(format!("${var}").as_bytes())
                 .unwrap()
@@ -113,7 +85,7 @@ mod tests {
 
     #[test]
     fn test_parse_braced_variable_body() {
-        let var = ScopedEnv::new("value");
+        let var = Env::new("value");
         assert_eq!(
             parse_braced_variable_body(format!("{{{var}}}").as_bytes())
                 .unwrap()
@@ -131,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_parse_fragment() {
-        let var = ScopedEnv::new("value");
+        let var = Env::new("value");
 
         assert_eq!(parse_fragment(b"foo").unwrap().1.unwrap().as_str(), "foo");
 
@@ -147,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_parse_combo() {
-        let var = ScopedEnv::new("value");
+        let var = Env::new("value");
         assert_eq!(
             parse(format!("foo${var}.foo.${{{var}}}$").as_bytes())
                 .unwrap()
