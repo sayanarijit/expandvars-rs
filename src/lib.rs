@@ -11,7 +11,7 @@ pub fn expand(input: &str) -> error::Result {
     parser::parse(input.as_bytes()).unwrap().1
 }
 
-pub fn expand_with<'a, E>(env: &'a mut E, input: &'a str) -> error::Result<'a>
+pub fn expand_with<E>(env: &mut E, input: &str) -> error::Result
 where
     E: Enviroment,
 {
