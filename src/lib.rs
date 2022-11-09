@@ -1,17 +1,28 @@
 #![feature(thread_id_value)]
 
-mod error;
-mod expander;
+use env::Enviroment;
+
+pub mod env;
+pub mod error;
 mod parser;
+mod token;
 
 pub fn expand(input: &str) -> error::Result {
     parser::parse(input.as_bytes()).unwrap().1
 }
 
+pub fn expand_with<'a, E>(env: &'a mut E, input: &'a str) -> error::Result<'a>
+where
+    E: Enviroment,
+{
+    parser::parse_with(env, input.as_bytes()).unwrap().1
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::env::FakeEnv;
+
     use super::*;
-    use scoped_rand_env::Env;
 
     #[test]
     fn test_constant() {
@@ -28,42 +39,45 @@ mod tests {
 
     #[test]
     fn test_simple() {
-        let var = Env::new("value");
-        assert_eq!(expand(&format!("${var}")).unwrap().as_str(), "value");
-        assert_eq!(expand(&format!("${{{var}}}")).unwrap().as_str(), "value");
+        let mut env = FakeEnv::empty().with("var", "value");
+
+        assert_eq!(expand_with(&mut env, "$var").unwrap().as_str(), "value");
+        assert_eq!(expand_with(&mut env, "${var}").unwrap().as_str(), "value");
     }
 
     #[test]
     fn test_expandvars_combo() {
-        let foo = Env::new("bar");
-        let biz = Env::new("buz");
+        let mut env = FakeEnv::empty().with("foo", "bar").with("biz", "buz");
 
         assert_eq!(
-            expand(&format!("${{{foo}}}:${biz}")).unwrap().as_str(),
+            expand_with(&mut env, "${foo}:$biz").unwrap().as_str(),
             "bar:buz"
         );
 
-        assert_eq!(expand(&format!("${foo}${biz}")).unwrap().as_str(), "barbuz");
-
         assert_eq!(
-            expand(&format!("${{{foo}}}${biz}")).unwrap().as_str(),
+            expand_with(&mut env, "$foo$biz").unwrap().as_str(),
             "barbuz"
         );
 
         assert_eq!(
-            expand(&format!("${foo}${{{biz}}}")).unwrap().as_str(),
+            expand_with(&mut env, "${foo}$biz").unwrap().as_str(),
             "barbuz"
         );
 
         assert_eq!(
-            expand(&format!("${foo}-${biz}")).unwrap().as_str(),
+            expand_with(&mut env, "$foo${biz}").unwrap().as_str(),
+            "barbuz"
+        );
+
+        assert_eq!(
+            expand_with(&mut env, "${foo}-${biz}").unwrap().as_str(),
             "bar-buz"
         );
 
-        assert_eq!(expand(&format!("boo${biz}")).unwrap().as_str(), "boobuz");
+        assert_eq!(expand_with(&mut env, "boo$biz").unwrap().as_str(), "boobuz");
 
         assert_eq!(
-            expand(&format!("boo${{{biz}}}")).unwrap().as_str(),
+            expand_with(&mut env, "boo${biz}").unwrap().as_str(),
             "boobuz"
         );
     }

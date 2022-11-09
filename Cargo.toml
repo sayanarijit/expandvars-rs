@@ -11,4 +11,3 @@ nom = "7.1.1"
 thiserror = "1.0.37"
 
 [dev-dependencies]
-scoped_rand_env = { path = "../scoped_rand_env" }

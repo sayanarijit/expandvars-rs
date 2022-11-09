@@ -18,4 +18,4 @@ impl From<FromUtf8Error> for Error {
     }
 }
 
-pub type Result = std::result::Result<String, Error>;
+pub type Result<'a> = std::result::Result<String, Error>;
