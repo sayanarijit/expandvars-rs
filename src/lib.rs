@@ -81,25 +81,15 @@ mod tests {
             "boobuz"
         );
     }
+
+    #[test]
+    fn test_expandvars_pid() {
+        let pid = std::process::id().to_string();
+        assert_eq!(expand("$$").unwrap(), pid);
+        assert_eq!(expand("${$}").unwrap(), pid);
+        assert_eq!(expand("PID( $$ )").unwrap(), format!("PID( {pid} )"));
+    }
 }
-// @patch.dict(env, {"FOO": "bar"}, clear=True)
-// def test_expandvars_from_file():
-//     importlib.reload(expandvars)
-//
-//     with open("tests/data/foo.txt") as f:
-//         assert expandvars.expandvars(f) == "bar:bar"
-//
-//
-//
-//
-// @patch.dict(env, {}, clear=True)
-// def test_expandvars_pid():
-//     importlib.reload(expandvars)
-//
-//     assert expandvars.expandvars("$$") == str(getpid())
-//     assert expandvars.expandvars("PID( $$ )") == "PID( {0} )".format(getpid())
-//
-//
 // @patch.dict(env, {"ALTERNATE": "Alternate", "EMPTY": ""}, clear=True)
 // def test_expandvars_get_default():
 //     importlib.reload(expandvars)
@@ -379,4 +369,11 @@ mod tests {
 //         )
 //         == "test,$HOME"
 //     )
+//
+// @patch.dict(env, {"FOO": "bar"}, clear=True)
+// def test_expandvars_from_file():
+//     importlib.reload(expandvars)
+//
+//     with open("tests/data/foo.txt") as f:
+//         assert expandvars.expandvars(f) == "bar:bar"
 //

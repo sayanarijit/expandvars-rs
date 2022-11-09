@@ -18,8 +18,12 @@ fn parse_constant(i: &[u8]) -> IResult<&[u8], Token> {
     map(take_while1(|c| c != b'$'), Token::Const)(i)
 }
 
+fn parse_pid(i: &[u8]) -> IResult<&[u8], Token> {
+    map(char('$'), |_| Token::Pid)(i)
+}
+
 fn parse_variable_body(i: &[u8]) -> IResult<&[u8], Token> {
-    map(take_while1(is_variable_name), Token::Var)(i)
+    alt((parse_pid, map(take_while1(is_variable_name), Token::Var)))(i)
 }
 
 fn parse_braced_variable_body(i: &[u8]) -> IResult<&[u8], Token> {
@@ -33,7 +37,7 @@ fn parse_dollar(i: &[u8]) -> IResult<&[u8], Token> {
 fn parse_variable(i: &[u8]) -> IResult<&[u8], Token> {
     preceded(
         char('$'),
-        alt((parse_braced_variable_body, parse_variable_body)),
+        alt((parse_braced_variable_body, parse_variable_body, parse_pid)),
     )(i)
 }
 

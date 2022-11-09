@@ -5,6 +5,7 @@ pub(crate) enum Token<'a> {
     Const(&'a [u8]),
     Var(&'a [u8]),
     Char(char),
+    Pid,
 }
 
 impl Token<'_> {
@@ -24,6 +25,7 @@ impl Token<'_> {
                 }
             }
             Token::Char(c) => Ok(c.into()),
+            Token::Pid => Ok(std::process::id().to_string()),
         }
     }
 }
