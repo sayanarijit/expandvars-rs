@@ -2,12 +2,13 @@ use crate::env::{Enviroment, ProcessEnv};
 use crate::error::Error;
 use crate::token::Token;
 use nom::branch::alt;
+use nom::bytes::complete::tag;
 use nom::bytes::complete::take_while1;
 use nom::character::complete::char;
 use nom::character::is_alphanumeric;
 use nom::combinator::map;
 use nom::multi::fold_many1;
-use nom::sequence::{delimited, preceded};
+use nom::sequence::{delimited, preceded, separated_pair};
 use nom::IResult;
 
 fn is_variable_name(c: u8) -> bool {
@@ -22,8 +23,27 @@ fn parse_pid(i: &[u8]) -> IResult<&[u8], Token> {
     map(char('$'), |_| Token::Pid)(i)
 }
 
+fn parse_variable_name(i: &[u8]) -> IResult<&[u8], Token> {
+    map(take_while1(is_variable_name), Token::Var)(i)
+}
+
+fn parse_variable_name_with_default(i: &[u8]) -> IResult<&[u8], Token> {
+    map(
+        separated_pair(
+            take_while1(is_variable_name),
+            alt((tag("-"), tag(":-"))),
+            parse_fragment, // TODO fix
+        ),
+        |(name, default)| Token::VarWithDefault(name, Box::new(default)),
+    )(i)
+}
+
 fn parse_variable_body(i: &[u8]) -> IResult<&[u8], Token> {
-    alt((parse_pid, map(take_while1(is_variable_name), Token::Var)))(i)
+    alt((
+        parse_pid,
+        parse_variable_name_with_default,
+        parse_variable_name,
+    ))(i)
 }
 
 fn parse_braced_variable_body(i: &[u8]) -> IResult<&[u8], Token> {
