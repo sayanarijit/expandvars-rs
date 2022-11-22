@@ -64,8 +64,6 @@ fn test_expandvars_get_default() {
         "default"
     );
 
-    assert_eq!(expand_with(&mut env, "${FOO:-}").unwrap(), "");
-
     assert_eq!(
         expand_with(&mut env, "${FOO:-foo}:${FOO-bar}").unwrap(),
         "foo:bar"
@@ -75,6 +73,8 @@ fn test_expandvars_get_default() {
         expand_with(&mut env, "${FOO:-$ALTERNATE}").unwrap(),
         "Alternate"
     );
+
+    assert_eq!(expand_with(&mut env, "${FOO:-}").unwrap(), "");
 
     assert_eq!(
         expand_with(&mut env, "${UNSET:-\\$foo}-\\$foo").unwrap(),

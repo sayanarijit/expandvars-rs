@@ -106,6 +106,24 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_variable_with_default() {
+        assert_eq!(
+            parse_variable_name_with_default(b"var-default").unwrap().1,
+            Token::VarWithDefault(b"var", Box::new(Token::Const(b"default")))
+        );
+
+        assert_eq!(
+            parse_variable_name_with_default(b"var-").unwrap().1,
+            Token::VarWithDefault(b"var", Box::new(Token::Const(b"")))
+        );
+
+        assert_eq!(
+            parse_variable_name_with_default(b"var:-").unwrap().1,
+            Token::VarWithDefault(b"var", Box::new(Token::Const(b"")))
+        );
+    }
+
+    #[test]
     fn test_parse_braced_variable_body() {
         assert_eq!(
             parse_braced_variable_body(b"{var}").unwrap().1,
@@ -129,13 +147,14 @@ mod tests {
         use Token::*;
 
         assert_eq!(
-            parse(b"foo$var.foo.${var}}$").unwrap().1.unwrap(),
+            parse(b"foo$var.foo.${var}}${var-}$").unwrap().1.unwrap(),
             vec![
                 Const(b"foo"),
                 Var(b"var"),
                 Const(b".foo."),
                 Var(b"var"),
                 Char('}'),
+                VarWithDefault(b"var", Box::new(Const(b""))),
                 Char('$')
             ]
         );
