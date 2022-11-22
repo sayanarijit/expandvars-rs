@@ -9,7 +9,7 @@ fn get_value<E>(name: &[u8], env: &E) -> Result<Option<String>, Error>
 where
     E: Enviroment,
 {
-    let key = String::from_utf8(name.into()).map_err(Error::from)?;
+    let key = to_string(name)?;
     let var = if let Some(val) = env.get(&key) {
         if val.is_empty() {
             None

@@ -1,4 +1,3 @@
-use crate::env::{Enviroment, ProcessEnv};
 use crate::error::Error;
 use crate::token::Token;
 use nom::branch::alt;
@@ -7,7 +6,7 @@ use nom::bytes::complete::take_while1;
 use nom::character::complete::char;
 use nom::character::is_alphanumeric;
 use nom::combinator::map;
-use nom::multi::fold_many1;
+use nom::multi::fold_many0;
 use nom::sequence::{delimited, preceded, separated_pair};
 use nom::IResult;
 
@@ -16,7 +15,7 @@ fn is_variable_name(c: u8) -> bool {
 }
 
 fn parse_constant(i: &[u8]) -> IResult<&[u8], Token> {
-    map(take_while1(|c| c != b'$'), Token::Const)(i)
+    map(take_while1(|c| c != b'$' && c != b'}'), Token::Const)(i)
 }
 
 fn parse_pid(i: &[u8]) -> IResult<&[u8], Token> {
@@ -32,7 +31,7 @@ fn parse_variable_name_with_default(i: &[u8]) -> IResult<&[u8], Token> {
         separated_pair(
             take_while1(is_variable_name),
             alt((tag("-"), tag(":-"))),
-            parse_fragment, // TODO fix
+            alt((parse_fragment, map(tag(""), Token::Const))),
         ),
         |(name, default)| Token::VarWithDefault(name, Box::new(default)),
     )(i)
@@ -54,6 +53,10 @@ fn parse_dollar(i: &[u8]) -> IResult<&[u8], Token> {
     map(char('$'), Token::Char)(i)
 }
 
+fn parse_closing_brace(i: &[u8]) -> IResult<&[u8], Token> {
+    map(char('}'), Token::Char)(i)
+}
+
 fn parse_variable(i: &[u8]) -> IResult<&[u8], Token> {
     preceded(
         char('$'),
@@ -62,40 +65,32 @@ fn parse_variable(i: &[u8]) -> IResult<&[u8], Token> {
 }
 
 fn parse_fragment(i: &[u8]) -> IResult<&[u8], Token> {
-    alt((parse_variable, parse_constant, parse_dollar))(i)
+    alt((
+        parse_variable,
+        parse_constant,
+        parse_dollar,
+        parse_closing_brace,
+    ))(i)
 }
 
-pub(crate) fn parse_with<'a, E>(
-    env: &mut E,
+pub(crate) fn parse<'a>(
     i: &'a [u8],
-) -> IResult<&'a [u8], Result<String, Error>>
-where
-    E: Enviroment,
-{
-    if i.is_empty() {
-        IResult::Ok((i, Ok(String::new())))
-    } else {
-        fold_many1(
-            parse_fragment,
-            || Ok(String::new()),
-            |tokens, tok| {
-                let mut tokens = tokens?;
-                tokens.push_str(&tok.expand_with(env)?);
-                Ok(tokens)
-            },
-        )(i)
-    }
-}
-
-pub(crate) fn parse(i: &[u8]) -> IResult<&[u8], Result<String, Error>> {
-    parse_with(&mut ProcessEnv, i)
+) -> IResult<&'a [u8], Result<Vec<Token<'a>>, Error>> {
+    fold_many0(
+        parse_fragment,
+        || Ok(Vec::new()),
+        |tokens, tok| {
+            let mut tokens = tokens?;
+            tokens.push(tok);
+            Ok(tokens)
+        },
+    )(i)
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::env::FakeEnv;
 
     #[test]
     fn test_parse_constant() {
@@ -130,16 +125,19 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_combo() {
-        let mut env = FakeEnv::empty();
-        env.set("var", "value");
+    fn test_pars() {
+        use Token::*;
 
         assert_eq!(
-            parse_with(&mut env, b"foo$var.foo.${var}$")
-                .unwrap()
-                .1
-                .unwrap(),
-            "foovalue.foo.value$"
+            parse(b"foo$var.foo.${var}}$").unwrap().1.unwrap(),
+            vec![
+                Const(b"foo"),
+                Var(b"var"),
+                Const(b".foo."),
+                Var(b"var"),
+                Char('}'),
+                Char('$')
+            ]
         );
     }
 }
